@@ -1,0 +1,54 @@
+# ==================== 配置文件说明 ====================
+# 本文件是配置模板，请复制为 config.ini 并填入真实值。
+# config.ini 已被 .gitignore 排除，不会被提交到 Git。
+#
+# 支持环境变量覆盖：
+#   如果在 config.ini 中使用占位符（如 ${MYSQL_PASSWORD}），
+#   也可以通过设置对应的环境变量来覆盖配置值。
+#   环境变量优先级高于 config.ini 中的值。
+# ===================================================
+
+#MySQL 配置
+[mysql]
+host = localhost
+user = root
+password = your_mysql_password_here
+database = subject_kg
+
+#Redis 配置
+[redis]
+host = localhost
+port = 6379
+password = your_redis_password_here
+db = 0
+
+# 日志配置
+[logger]
+log_file = ./logs/app.log
+
+#应用配置
+[app]
+valid_source = ['ai','java','test','ops','bigdata']
+customer_service_phone = your_phone_number_here
+
+#milvus 配置
+[milvus]
+host = localhost
+port = 19530
+database_name = default
+collection_name = edurag_final
+
+#LLM配置
+# dashscope_api_key: 在 https://dashscope.console.aliyun.com/ 获取
+[llm]
+model_name = qwen3.7-plus
+dashscope_api_key = your_dashscope_api_key_here
+dashscope_base_url = https://dashscope.aliyuncs.com/compatible-mode/v1
+
+#检索参数配置
+[retrieval]
+parent_chunk_size = 1200
+child_chunk_size = 300
+chunk_overlap = 50
+retrieval_k = 5
+candidate_m = 2

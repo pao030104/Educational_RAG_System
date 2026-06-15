@@ -1,0 +1,70 @@
+# ==================== 敏感配置文件 ====================
+# config.ini 包含数据库密码、API密钥等敏感信息，绝对不要提交到 Git！
+# 请复制 config.ini.example 为 config.ini 并填入真实配置。
+config.ini
+.env
+
+# ==================== Python 字节码 ====================
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+*.egg
+dist/
+build/
+
+# ==================== 日志文件 ====================
+logs/*.log
+logs/*.log.*
+
+# ==================== 模型权重文件 ====================
+# 模型通过 HuggingFace/ModelScope 在线下载，不应提交到 Git
+*.bin
+*.safetensors
+*.pt
+*.pth
+*.h5
+*.ckpt
+*.onnx
+
+# 自动训练生成的微调模型（首次运行后产生）
+rag_qa/core/bert_query_classifier/*.json
+rag_qa/core/bert_query_classifier/*.safetensors
+rag_qa/core/bert_query_classifier/vocab.txt
+rag_qa/core/bert_query_classifier/special_tokens_map.json
+rag_qa/core/bert_query_classifier/tokenizer_config.json
+
+# 模型训练临时目录
+rag_qa/core/bert_results/
+rag_qa/core/bert_logs/
+rag_qa/core/bert_eval_tmp/
+
+# ==================== 临时/缓存文件 ====================
+tmp_trainer/*
+*.tmp
+*.swp
+*.swo
+*~
+
+# ==================== IDE 配置 ====================
+.vscode/
+.idea/
+*.iml
+
+# ==================== macOS ====================
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# ==================== 其他 ====================
+# Jupyter notebook 检查点
+.ipynb_checkpoints/
+
+# pip 虚拟环境
+venv/
+env/
+.venv/
+
+# Conda 环境
+conda-env/
