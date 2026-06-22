@@ -37,8 +37,9 @@ from base import Config
 
 # ==================== 全局实例 ====================
 
-qa: IntegratedQASystem = None
-config: Config = None
+qa: IntegratedQASystem | None = None
+config: Config | None = None
+_init_error: str | None = None
 
 
 # ==================== 请求模型 ====================
@@ -53,13 +54,31 @@ class ChatRequest(BaseModel):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """应用启动时初始化 QA 系统，关闭时清理数据库连接。"""
-    global qa, config
+    """应用启动时初始化 QA 系统；若后端服务不可用则打印告警但不阻塞启动。"""
+    global qa, config, _init_error
     config = Config()
-    qa = IntegratedQASystem()
+
+    try:
+        qa = IntegratedQASystem()
+    except Exception as e:
+        _init_error = str(e)
+        print(f"\n{'='*60}")
+        print(f"⚠️  QA 系统初始化失败（前端仍可访问，API 暂不可用）")
+        print(f"   常见原因：")
+        print(f"   1. HuggingFace 模型未下载 → 需联网首次下载 BGE 模型")
+        print(f"   2. MySQL/Redis/Milvus 未启动 → 检查 docker 服务")
+        print(f"   3. 配置错误 → 检查 config.ini")
+        print(f"   详细错误: {_init_error}")
+        print(f"{'='*60}\n")
+        qa = None
+
     yield
+
     if qa and hasattr(qa, "mysql_client") and qa.mysql_client:
-        qa.mysql_client.close()
+        try:
+            qa.mysql_client.close()
+        except Exception:
+            pass
 
 
 # ==================== FastAPI 应用 ====================
@@ -78,6 +97,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ==================== 依赖检查 ====================
+
+def _check_qa():
+    """检查 QA 系统是否已初始化；未初始化则抛出 503。"""
+    from fastapi import HTTPException
+
+    if qa is None:
+        raise HTTPException(
+            status_code=503,
+            detail=f"QA 系统未初始化。可能原因: HuggingFace 模型未下载 / MySQL/Redis/Milvus 未启动 / 配置错误"
+        )
 
 
 # ==================== API 端点 ====================
@@ -99,6 +131,7 @@ async def chat(req: ChatRequest):
     返回:
         text/event-stream: 逐 token 产出答案
     """
+    _check_qa()
     # 未提供 session_id 时自动生成
     sid = req.session_id or str(uuid.uuid4())
 
@@ -133,6 +166,7 @@ async def chat(req: ChatRequest):
 @app.get("/api/history/{session_id}")
 async def get_history(session_id: str):
     """获取指定会话的最近 5 轮对话历史。"""
+    _check_qa()
     history = qa.get_session_history(session_id)
     return {"session_id": session_id, "history": history}
 
@@ -140,6 +174,7 @@ async def get_history(session_id: str):
 @app.delete("/api/history/{session_id}")
 async def clear_history(session_id: str):
     """清空指定会话的全部对话历史。"""
+    _check_qa()
     success = qa.clear_session_history(session_id)
     return {"session_id": session_id, "success": success}
 
@@ -147,6 +182,8 @@ async def clear_history(session_id: str):
 @app.get("/api/sources")
 async def get_sources():
     """返回系统中所有可用的学科类别列表。"""
+    if config is None:
+        return {"sources": []}
     return {"sources": config.VALID_SOURCES}
 
 
@@ -156,6 +193,8 @@ async def get_conversations():
     列出所有会话及其最近一次提问（供侧边栏历史列表用）。
     按最近活动时间倒序排列，最多返回 100 条。
     """
+    if qa is None:
+        return []
     try:
         qa.mysql_client.cursor.execute("""
             SELECT c.session_id, c.question, c.timestamp
