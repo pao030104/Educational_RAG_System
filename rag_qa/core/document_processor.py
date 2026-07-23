@@ -12,7 +12,7 @@
     │ .docx        │ OCRDOCLoader (含图片OCR)             │
     │ .ppt/.pptx   │ OCRPPTLoader (含图片OCR)             │
     │ .jpg/.png    │ OCRIMGLoader (图片OCR)               │
-    │ .md          │ UnstructuredMarkdownLoader           │
+    │ .md          │ TextLoader           │
     └──────────────┴─────────────────────────────────────┘
 
 父子块 (Parent-Child Chunk) 策略说明:
@@ -40,9 +40,7 @@ import os  # 文件和目录操作
 
 # ---- LangChain 文档加载器 ----
 from langchain_community.document_loaders import TextLoader             # 纯文本加载器
-from langchain_community.document_loaders.markdown import (
-    UnstructuredMarkdownLoader                                          # Markdown 加载器
-)
+
 # ---- 文本切分器 ----
 from langchain.text_splitter import MarkdownTextSplitter                # Markdown 专用切分器
 
@@ -73,7 +71,7 @@ document_loaders = {
     ".pptx": OCRPPTLoader,              # PowerPoint 新版格式
     ".jpg":  OCRIMGLoader,              # JPEG 图片（OCR 识别）
     ".png":  OCRIMGLoader,              # PNG 图片（OCR 识别）
-    ".md":   UnstructuredMarkdownLoader # Markdown 文档
+    ".md":   TextLoader                  # Markdown 文档（用 TextLoader 替代，避免 spaCy 网络依赖）
 }
 
 

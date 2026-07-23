@@ -91,6 +91,7 @@ class Config:
 
         # ---- 步骤4: Milvus 向量数据库配置 ----
         # 以下配置项定义 Milvus 向量数据库连接和集合参数
+        self.MILVUS_URI = self.config.get('milvus', 'uri', fallback='')                         # Milvus Lite 本地文件路径，为空时使用远程服务
         self.MILVUS_HOST = self.config.get('milvus', 'host', fallback='localhost')              # Milvus 服务主机地址
         self.MILVUS_PORT = self.config.getint('milvus', 'port', fallback=19530)                 # Milvus 服务端口号
         self.MILVUS_DATABASE_NAME = self.config.get('milvus', 'database_name', fallback='milvus_qa')   # Milvus 数据库名称
@@ -204,6 +205,7 @@ class Config:
         self.REDIS_DB = self._env_int('REDIS_DB', self.REDIS_DB)
 
         # Milvus 配置
+        self.MILVUS_URI = os.environ.get('MILVUS_URI', self.MILVUS_URI)
         self.MILVUS_HOST = os.environ.get('MILVUS_HOST', self.MILVUS_HOST)
         self.MILVUS_PORT = self._env_int('MILVUS_PORT', self.MILVUS_PORT)
         self.MILVUS_DATABASE_NAME = os.environ.get(

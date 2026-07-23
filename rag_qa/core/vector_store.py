@@ -25,7 +25,7 @@
     查询 → BGE-M3 生成向量 → 混合检索(Dense+Sparse) → 父文档去重 → Reranker精排 → Top-M 结果
 
 模型说明:
-    - BGE-M3 (BAAI/bge-m3): 多语言嵌入模型，支持 Dense + Sparse + ColBERT
+    - BGE-M3 (D:\Projects\Models\local\bge-m3): 多语言嵌入模型，支持 Dense + Sparse + ColBERT
     - BGE-Reranker-Large (BAAI/bge-reranker-large): Cross-Encoder 重排序模型
 """
 
@@ -113,7 +113,7 @@ class VectorStore:
         # device="cpu": CPU 推理（可改为 "cuda" 或 "mps" 加速）
         # 使用 HuggingFace Hub 模型名称，首次运行自动下载（约 2.2GB）。
         self.embedding_function = BGEM3EmbeddingFunction(
-            model_name="BAAI/bge-m3",
+            model_name=r"D:\Projects\Models\local\bge-m3",
             use_fp16=False,
             device="cpu"
         )
@@ -123,8 +123,9 @@ class VectorStore:
         self.dense_dim = self.embedding_function.dim["dense"]
 
         # ---- 连接 Milvus 向量数据库 ----
+        milvus_uri = conf.MILVUS_URI or f"http://{self.host}:{self.port}"
         self.client = MilvusClient(
-            uri=f"http://{self.host}:{self.port}",
+            uri=milvus_uri,
             db_name=self.database
         )
 
@@ -285,7 +286,7 @@ class VectorStore:
             # Milvus 要求稀疏向量以 dict[int, float] 格式存储
             # 从 CSR 矩阵的第 i 行提取非零元素
             sparse_vector = {}
-            row = embeddings["sparse"].getrow(i)   # 获取第 i 行
+            row = embeddings["sparse"][[i]]   # 获取第 i 行
             indices = row.indices                    # 非零值的列索引
             values = row.data                        # 非零值本身
             for idx, value in zip(indices, values):
@@ -349,7 +350,7 @@ class VectorStore:
 
         # 提取稀疏查询向量 (dict[int, float])
         sparse_query_vector = {}
-        row = query_embeddings["sparse"].getrow(0)
+        row = query_embeddings["sparse"][[0]]
         for idx, value in zip(row.indices, row.data):
             sparse_query_vector[idx] = value
 

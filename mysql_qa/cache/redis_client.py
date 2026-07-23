@@ -24,6 +24,7 @@ if root_path not in sys.path:
 
 import redis           # Redis Python 客户端
 import json            # JSON 序列化/反序列化，用于缓存复杂数据结构
+import socket          # 用于快速检测 Redis 端口是否可用
 from base import Config, logger  # 全局配置和日志
 
 
@@ -64,13 +65,25 @@ class RedisClient:
         self.logger = logger  # 绑定日志器
 
         try:
+            conf = Config()
+            try:
+                with socket.create_connection((conf.REDIS_HOST, conf.REDIS_PORT), timeout=0.5):
+                    pass
+            except OSError as e:
+                self.client = None
+                self.logger.warning(f"Redis 未启动，缓存功能已禁用: {e}")
+                return
+
             # StrictRedis 是 Redis 的标准客户端类
             # decode_responses=True: 自动将 Redis 返回的 bytes 解码为 str
             self.client = redis.StrictRedis(
-                host=Config().REDIS_HOST,        # Redis 服务器地址
-                port=Config().REDIS_PORT,        # Redis 端口号
-                password=Config().REDIS_PASSWORD, # Redis 认证密码
-                db=Config().REDIS_DB,            # 使用的数据库编号（默认 0）
+                host=conf.REDIS_HOST,            # Redis 服务器地址
+                port=conf.REDIS_PORT,            # Redis 端口号
+                password=conf.REDIS_PASSWORD,    # Redis 认证密码
+                db=conf.REDIS_DB,                # 使用的数据库编号（默认 0）
+                socket_connect_timeout=1,        # Redis 未启动时快速降级
+                socket_timeout=1,                # 缓存读写最多等待 1 秒
+                protocol=2,                       # 兼容 Windows 旧版 Redis，不发送 HELLO 3
                 decode_responses=True            # 自动字符串解码
             )
             self.logger.info('连接Redis数据库成功')
@@ -92,6 +105,8 @@ class RedisClient:
             若存储失败，仅记录错误日志而不会抛出异常，
             因为缓存失败不应影响主业务流程。
         """
+        if self.client is None:
+            return
         try:
             # json.dumps 将 Python 对象转换为 JSON 字符串
             self.client.set(key, json.dumps(value))
@@ -112,6 +127,8 @@ class RedisClient:
         注意:
             与 set_data 配对使用：set_data 做 json.dumps → get_data 做 json.loads。
         """
+        if self.client is None:
+            return None
         try:
             data = self.client.get(key)  # 从 Redis 获取字符串
             # 只有 data 不为 None 时才进行 JSON 反序列化
@@ -138,6 +155,8 @@ class RedisClient:
             返回前会通过 json.loads 解码，确保与 set_data 的 json.dumps 编码
             保持一致，避免返回带 JSON 引号的字符串。
         """
+        if self.client is None:
+            return None
         try:
             # 答案缓存使用统一的前缀 "answer:" 命名空间
             answer = self.client.get(f'answer:{query}')

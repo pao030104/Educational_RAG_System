@@ -71,3 +71,15 @@ conda-env/
 
 # uv 包管理器
 .python-version
+
+
+# ==================== 调试和临时脚本 ====================
+check_blob.py
+download_bge3.py
+download_bge3_hf.py
+download_direct.py
+download_models.py
+fix_cache.py
+fix_cache2.py
+test_bge3.py
+test_bge3_local.py

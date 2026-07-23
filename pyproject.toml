@@ -3,7 +3,7 @@ name = "edurag"
 version = "1.0.0"
 description = "教育领域智能问答系统 — 融合关键词匹配与语义检索双引擎的 RAG 问答系统"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.13"
 license = {text = "MIT"}
 authors = [
     {name = "Happy Chen", email = "19867713117@163.com"},
@@ -38,12 +38,12 @@ dependencies = [
     "tokenizers>=0.21.0",
 
     # ========== LangChain 生态 ==========
-    "langchain>=0.3.24",
-    "langchain-core>=0.3.55",
-    "langchain-community>=0.3.22",
-    "langchain-text-splitters>=0.3.8",
-    "langchain-milvus>=0.1.8",
-    "langchain-ollama>=0.2.3",
+    "langchain>=0.3.24,<1.0.0",
+    "langchain-core>=0.3.55,<1.0.0",
+    "langchain-community>=0.3.22,<0.4.0",
+    "langchain-text-splitters>=0.3.8,<1.0.0",
+    "langchain-milvus>=0.1.8,<0.3.0",
+    "langchain-ollama>=0.2.3,<1.0.0",
     "langsmith>=0.3.9",
 
     # ========== 向量数据库 ==========
@@ -58,6 +58,7 @@ dependencies = [
 
     # ========== 数据处理与科学计算 ==========
     "numpy>=1.26.0",
+    "numba>=0.61.0",
     "pandas>=2.2.0",
     "scikit-learn>=1.6.0",
     "scipy>=1.12.0",

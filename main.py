@@ -36,11 +36,6 @@
 # BM25Search: 基于 BM25 算法的关键词匹配检索引擎
 from mysql_qa import MySQLClient, RedisClient, BM25Search
 
-# ---- 导入 RAG 问答子系统 ----
-# VectorStore: 基于 Milvus 的向量存储与混合检索引擎
-# RAGSystem: RAG 核心逻辑，包含查询分类、策略选择、检索增强生成
-from rag_qa import VectorStore, RAGSystem
-
 # ---- 导入基础工具 ----
 # logger: 全局日志器，记录系统运行状态和异常信息
 # Config: 全局配置管理器，读取 config.ini
@@ -55,6 +50,8 @@ import time
 import uuid
 # pymysql: MySQL 数据库驱动，用于类型化的异常处理
 import pymysql
+import socket
+import os
 
 
 class IntegratedQASystem:
@@ -104,6 +101,7 @@ class IntegratedQASystem:
         self.logger = logger
         # 加载全局配置，包括数据库、LLM、检索等所有参数
         self.config = Config()
+        self._last_sources = []
 
         # ---- 启动时配置校验 ----
         config_warnings = self.config.validate()
@@ -128,11 +126,27 @@ class IntegratedQASystem:
             raise  # LLM 客户端是系统核心依赖，初始化失败应立即终止
 
         # ---- 初始化 RAG 子系统 ----
-        # VectorStore 加载 Milvus 向量数据库
-        self.vector_store = VectorStore()
-        # RAGSystem 接收向量存储实例和 LLM 回调函数
-        # 传入 call_dashscope (非流式版本)，供内部检索策略使用
-        self.rag_system = RAGSystem(self.vector_store, self.call_dashscope)
+        # Milvus 是完整 RAG 的可选外部服务；本地未启动时先跳过，保留 MySQL + LLM 基础问答能力。
+        self.vector_store = None
+        self.rag_system = None
+        try:
+            if os.getenv("EDURAG_FAST_START", "").lower() in {"1", "true", "yes"}:
+                self.logger.info("已启用快速启动模式，暂不加载 RAG 子系统")
+            else:
+                if not self.config.MILVUS_URI:
+                    with socket.create_connection(
+                        (self.config.MILVUS_HOST, self.config.MILVUS_PORT), timeout=1
+                    ):
+                        pass
+                from rag_qa import VectorStore, RAGSystem
+
+                # VectorStore 加载 Milvus 向量数据库
+                self.vector_store = VectorStore()
+                # RAGSystem 接收向量存储实例和 LLM 回调函数
+                # 传入 call_dashscope (非流式版本)，供内部检索策略使用
+                self.rag_system = RAGSystem(self.vector_store, self.call_dashscope)
+        except Exception as e:
+            self.logger.warning(f"RAG 子系统暂不可用，已跳过 Milvus 初始化: {e}")
 
         # ---- 确保数据库表结构就绪 ----
         self.init_conversation_table()
@@ -455,14 +469,21 @@ class IntegratedQASystem:
             yield answer, True
 
         elif need_rag:
-            # ---- 分支B: BM25 未命中，启动 RAG 语义检索流程 ----
-            self.logger.info("无可靠MySQL答案,使用RAG系统处理查询")
-            # RAGSystem.generate_answer 内部执行:
-            #   1) BERT 查询分类（通用知识 vs 专业咨询）
-            #   2) LLM 策略选择（直接/子查询/回溯/HyDE）
-            #   3) Milvus 混合检索 + BGE-Reranker 重排序
-            #   4) LLM 基于检索到的上下文生成最终答案
-            answer = self.rag_system.generate_answer(query, source_filter=source_filter)
+            # ---- 分支B: BM25 未命中，优先使用 RAG；Milvus 不可用时退回 LLM 直接回答 ----
+            if self.rag_system is not None:
+                self.logger.info("无可靠MySQL答案,使用RAG系统处理查询")
+                # RAGSystem.generate_answer 内部执行:
+                #   1) BERT 查询分类（通用知识 vs 专业咨询）
+                #   2) LLM 策略选择（直接/子查询/回溯/HyDE）
+                #   3) Milvus 混合检索 + BGE-Reranker 重排序
+                #   4) LLM 基于检索到的上下文生成最终答案
+                answer, sources, _ = self.rag_system.generate_answer(query, source_filter=source_filter)
+            else:
+                self.logger.info("RAG不可用，使用LLM直接回答查询")
+                answer = self.call_dashscope(
+                    "请直接回答用户问题。若问题涉及项目知识库且你无法确定，请说明当前未启用向量知识库检索。\n\n"
+                    f"用户问题：{query}"
+                )
             if session_id:
                 self.update_session_history(session_id, query, answer)
             processing_time = time.time() - start_time

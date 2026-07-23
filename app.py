@@ -148,7 +148,12 @@ async def chat(req: ChatRequest):
                         yield f"data: {json.dumps({'token': chunk, 'session_id': sid, 'done': False}, ensure_ascii=False)}\n\n"
                         await asyncio.sleep(0.015)
                 if is_complete:
-                    yield f"data: {json.dumps({'token': '', 'session_id': sid, 'done': True}, ensure_ascii=False)}\n\n"
+                    last_sources = []
+                    try:
+                        last_sources = getattr(qa, '_last_sources', [])
+                    except:
+                        pass
+                    yield f"data: {json.dumps({'token': '', 'session_id': sid, 'done': True, 'sources': last_sources}, ensure_ascii=False)}\n\n"
                     break
         except Exception as e:
             yield f"data: {json.dumps({'token': f'系统错误: {str(e)}', 'session_id': sid, 'done': True}, ensure_ascii=False)}\n\n"

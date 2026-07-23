@@ -305,7 +305,10 @@ class RAGSystem:
                                            为 None 时不过滤。
 
         返回:
-            str: LLM 生成的答案文本。
+            tuple: (answer_text, sources_list, category)
+            - answer_text (str): LLM 生成的答案文本
+            - sources_list (list): 文章来源列表
+            - category (str): 查询分类（通用知识/专业咨询）
 
         使用示例:
             >>> answer = rag.generate_answer("AI学科有哪些课程？")
@@ -340,7 +343,7 @@ class RAGSystem:
                 f"通用知识查询处理完成 "
                 f"(耗时: {processing_time:.2f}s, 查询: '{query}')"
             )
-            return answer
+            return answer, [], query_category
 
         # ---- 步骤2b: 专业咨询 → 完整 RAG 流程 ----
         logger.info("查询为专业知识查询,执行RAG流程")
@@ -353,11 +356,21 @@ class RAGSystem:
             query, source_filter=source_filter, strategy=strategy
         )
 
-        # ---- 步骤3c: 构建上下文 ----
+        # ---- 步骤3c: 提取文章来源 ----
+        sources = list(set(
+            doc.metadata.get('source', '未知来源') for doc in context_docs if hasattr(doc, 'metadata')
+        )) if context_docs else []
+        if not sources:
+            sources = list(set(
+                str(doc.metadata.get('file_path', doc.metadata.get('source', '未知来源')))
+                for doc in context_docs if hasattr(doc, 'metadata')
+            )) if context_docs else []
+
+        # ---- 步骤3d: 构建上下文 ----
         if context_docs:
             # 将多个文档的内容用双换行拼接
             context = "\n\n".join([doc.page_content for doc in context_docs])
-            logger.info(f"检索到 {len(context_docs)} 个文档作为上下文")
+            logger.info(f"检索到 {len(context_docs)} 个文档作为上下文, 来源: {sources}")
         else:
             context = ""
             logger.info(f"没有检索到文档作为上下文,上下文为空")
