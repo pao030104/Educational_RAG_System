@@ -1,5 +1,5 @@
 <p align="center">
-  <h1 align="center">🎓 EduRAG — 教育领域智能问答系统</h1>
+  <h2 align="center">🍀 EduRAG — 教育领域智能问答系统</h2>
   <p align="center">
     面向教育场景的 <b>RAG（检索增强生成）</b> 智能问答系统，融合关键词匹配与语义检索双引擎，
     支持多种文档格式、自动查询分类、智能策略选择与流式 LLM 答案生成。
@@ -32,31 +32,30 @@ EduRAG 是一个面向教育领域的智能问答系统，基于 RAG（Retrieval
 
 ---
 
-## 🏗️ 系统架构
+## 系统架构
 
-`
-┌──────────────────────────────────────────────────────────────┐
-│                    main.py (顶层入口)                          │
-│                  IntegratedQASystem                           │
-├──────────────────────────────────────────────────────────────┤
-│                                                              │
-│  ┌─────────────────────┐       ┌──────────────────────────┐  │
-│  │    mysql_qa         │       │       rag_qa             │  │
-│  │  (关键词检索引擎)    │       │    (语义检索引擎)         │  │
-│  │                     │       │                          │  │
-│  │  • BM25 关键词匹配   │ 未命中 │  • BERT 查询意图分类     │  │
-│  │  • Redis 查询缓存    │──────▶│  • LLM 检索策略选择      │  │
-│  │  • MySQL 答案存储    │       │  • Milvus 混合向量检索   │  │
-│  │  • jieba 中文分词    │       │  • BGE-Reranker 精排    │  │
-│  │                     │       │  • DeepSeek/Qwen 生成    │  │
-│  └─────────────────────┘       └──────────────────────────┘  │
-│                                                              │
-│                    ▼ 最终答案 ▼                                │
-│              • 流式输出 (token-by-token)                       │
-│              • 对话历史持久化 (MySQL)                           │
-│              • 文章来源引用                                     │
-└──────────────────────────────────────────────────────────────┘
-`
+项目采用双引擎 + 智能路由架构，核心流程如下：
+
+```mermaid
+graph TD
+    A[用户查询] --> B[BERT 查询意图分类]
+    B --> C{是否为通用知识？}
+    C -->|是| D[DeepSeek 直接回答]
+    C -->|否| E[LLM 策略选择]
+    E --> F[Milvus 混合向量检索]
+    F --> G[BGE-Reranker 精排]
+    G --> H[DeepSeek 生成回答]
+```
+
+**双引擎机制：**
+
+| 引擎 | 模块 | 说明 |
+|------|------|------|
+| **关键词引擎** | mysql_qa/ | BM25 关键词匹配 + Redis 缓存 + MySQL 问答库 |
+| **语义引擎** | rag_qa/ | BERT 分类 + 4 种策略 + Milvus 混合检索 + LLM 生成 |
+
+当关键词引擎的 BM25 匹配置信度足够高时，直接返回 MySQL 中的答案；否则自动降级到语义引擎进行 RAG 检索和 LLM 生成。所有对话记录持久化到 MySQL。
+
 
 ## ✨ 功能特性
 
@@ -262,39 +261,44 @@ GET /api/conversations               # 获取所有会话
 
 ---
 
-## 📁 项目结构
+## 项目结构
 
-`
+```
 Educational_RAG_System/
-├── app.py                          # FastAPI Web 服务入口
-├── main.py                         # IntegratedQASystem 双引擎问答系统
-├── config.ini                      # 系统配置文件（已排除，请复制模板）
-├── config.ini.example              # 配置模板
-├── pyproject.toml                  # 项目依赖
-├── base/                           # 基础组件
-│   ├── config.py                   #   配置管理
-│   └── logger.py                   #   日志系统
-├── mysql_qa/                       # BM25 关键词匹配引擎
-│   ├── db/                         #   MySQL 客户端
-│   ├── cache/                      #   Redis 缓存
-│   ├── retrieval/                  #   BM25 检索
-│   └── utils/                      #   预处理工具
-├── rag_qa/                         # RAG 语义检索引擎
-│   ├── core/                       #   核心模块
-│   │   ├── vector_store.py         #     Milvus 混合检索
-│   │   ├── rag_system.py           #     RAG 流程编排
-│   │   ├── query_classifier.py     #     BERT 查询分类
-│   │   ├── strategy_selector.py    #     LLM 策略选择
-│   │   └── document_processor.py   #     文档处理
-│   ├── edu_text_spliter/           #   文本分割器
-│   ├── data/                       #   知识库文档
-│   └── rag_main.py                 #   RAG 子系统入口
-├── static/                         # 前端静态页面
-│   └── index.html                  #   对话界面
-└── logs/                           # 日志文件
-`
-
----
+├── app.py                   # FastAPI Web 入口（SSE 流式 API）
+├── main.py                  # IntegratedQASystem 双引擎问答系统
+├── config.ini.example       # 配置模板
+├── pyproject.toml           # 依赖管理
+├── start.bat                # Windows 一键启动脚本
+│
+├── base/                    # 基础组件
+│   ├── config.py            # 配置管理（环境变量覆盖）
+│   └── logger.py            # 日志系统
+│
+├── mysql_qa/                # BM25 关键词引擎
+│   ├── db/
+│   │   └── mysql_client.py  # MySQL 客户端
+│   ├── cache/
+│   │   └── redis_client.py  # Redis 缓存
+│   └── retrieval/
+│       └── bm25_search.py   # BM25 检索
+│
+├── rag_qa/                  # RAG 语义引擎
+│   ├── core/
+│   │   ├── vector_store.py       # Milvus 混合检索
+│   │   ├── rag_system.py         # RAG 流程编排
+│   │   ├── query_classifier.py   # BERT 查询分类
+│   │   ├── strategy_selector.py  # LLM 策略选择
+│   │   └── document_processor.py # 文档处理
+│   ├── edu_text_spliter/    # 文本分割器
+│   ├── data/                # 知识库文档
+│   └── rag_main.py          # RAG 子系统入口
+│
+├── static/                  # 前端页面
+│   └── index.html           # 对话界面
+│
+└── logs/                    # 日志（.gitignore 排除）
+```
 
 ## ❓ 常见问题
 
@@ -305,9 +309,9 @@ Educational_RAG_System/
 可以。仅运行 RAG 子系统：uv run python rag_qa/rag_main.py。BM25 关键词匹配和对话历史功能需要 MySQL；性能优化和查询缓存需要 Redis。
 
 ### Q: 如何添加新的学科？
-1. 修改 config.ini 的 alid_source 列表
+1. 修改 config.ini 的 valid_source 列表
 2. 创建对应数据目录 
-ag_qa/data/{学科}_data/
+rag_qa/data/{学科}_data/
 3. 放入文档文件
 4. 重新运行数据处理
 
@@ -326,6 +330,5 @@ ag_qa/data/{学科}_data/
 
 **pao030104** — [@pao030104](https://github.com/pao030104)
 
-基于 [Happy-Chen-CH/Educational_RAG_System](https://github.com/Happy-Chen-CH/Educational_RAG_System) 改进
 
 ---
